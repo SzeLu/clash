@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Dreamacro/clash/adapters/outbound"
-	"github.com/Dreamacro/clash/adapters/outboundgroup"
+	"github.com/Dreamacro/clash/adapter"
+	"github.com/Dreamacro/clash/adapter/outboundgroup"
 	"github.com/Dreamacro/clash/component/profile/cachefile"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/tunnel"
@@ -66,19 +66,17 @@ func getProxy(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, proxy)
 }
 
-type UpdateProxyRequest struct {
-	Name string `json:"name"`
-}
-
 func updateProxy(w http.ResponseWriter, r *http.Request) {
-	req := UpdateProxyRequest{}
+	req := struct {
+		Name string `json:"name"`
+	}{}
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, ErrBadRequest)
 		return
 	}
 
-	proxy := r.Context().Value(CtxKeyProxy).(*outbound.Proxy)
+	proxy := r.Context().Value(CtxKeyProxy).(*adapter.Proxy)
 	selector, ok := proxy.ProxyAdapter.(*outboundgroup.Selector)
 	if !ok {
 		render.Status(r, http.StatusBadRequest)
@@ -111,7 +109,7 @@ func getProxyDelay(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(timeout))
 	defer cancel()
 
-	delay, err := proxy.URLTest(ctx, url)
+	delay, meanDelay, err := proxy.URLTest(ctx, url)
 	if ctx.Err() != nil {
 		render.Status(r, http.StatusGatewayTimeout)
 		render.JSON(w, r, ErrRequestTimeout)
@@ -125,6 +123,7 @@ func getProxyDelay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, r, render.M{
-		"delay": delay,
+		"delay":     delay,
+		"meanDelay": meanDelay,
 	})
 }
